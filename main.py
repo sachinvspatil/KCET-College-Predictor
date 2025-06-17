@@ -42,7 +42,7 @@ st.markdown(
 
 # ------------------ Auth Config ------------------
 USER_DB_FILE = "users.csv"
-QR_CODE_IMAGE = "static/upi_qr.png"
+QR_CODE_IMAGE = "upi_qr.png"
 ADMIN_EMAIL = "sachinvspatil@gmail.com"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "supersecret"  # Change this securely!
