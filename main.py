@@ -57,7 +57,7 @@ st.markdown(
 
 # ------------------ Config ------------------
 USER_DB_FILE = "users.csv"
-QR_CODE_IMAGE = "static/upi_qr.png"  # Replace with your actual QR code image
+QR_CODE_IMAGE = "upi_qr.png"  # Replace with your actual QR code image
 ADMIN_EMAIL = "sachinvspatil@gmail.com"  # Replace with your support email
 
 # ------------------ Auth Utils ------------------
