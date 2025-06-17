@@ -1,0 +1,10 @@
+---
+applications:
+- name: CollegePredictor
+  buildpack: dicf_python_buildpack_latest
+  stack: cflinuxfs4
+  health-check-type: none
+  memory: 4G
+  env:
+    DISABLE_STREAMLIT_WATCHDOG: true
+    
