@@ -195,7 +195,7 @@ else:
     location_options = sorted(df['Location'].dropna().unique().tolist())
     
     # ------------------ Tabs ------------------
-    tab1, tab2 = st.tabs(["🎯 Rank-Based Prediction", "🏫 College & Branch Explorer"])
+    tab1, tab2 = st.tabs(["🏫 College & Branch Explorer","🎯 Rank-Based Prediction", ])
     
     # ------------------ TAB 1: Rank-Based ------------------
     with tab1:
