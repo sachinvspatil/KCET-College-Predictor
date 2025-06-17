@@ -201,7 +201,7 @@ else:
         
     @st.cache_data
     def load_cutoff_data():
-        df = pd.read_csv("cutoff_data.csv")
+        df = pd.read_csv("cleaned_cutoff_data_latest.csv")
         df.columns = df.columns.str.strip()  # Strip whitespace from column names
         df["Cutoff Rank"] = pd.to_numeric(df["Cutoff Rank"], errors="coerce")
         return df
