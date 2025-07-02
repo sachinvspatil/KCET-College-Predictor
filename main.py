@@ -209,7 +209,7 @@ st.title("🎓 Welcome to KCET College Predictor")
     
 @st.cache_data
 def load_cutoff_data():
-    df = pd.read_csv("cleaned_cutoff_data_latest.csv")
+    df = pd.read_csv("cleaned_cutoff_data_latest_cs.csv")
     df.columns = df.columns.str.strip()  # Strip whitespace from column names
     df["Cutoff Rank"] = pd.to_numeric(df["Cutoff Rank"], errors="coerce")
     return df
@@ -301,14 +301,16 @@ with tab2:
             selected_college = st.selectbox("🏛️ Optional: Filter by College", ["-- Any --"] + college_options)
             selected_location = st.selectbox("📍 Optional: Filter by Location", ["-- Any --"] + location_options)
         with col2:
-            selected_category_display = st.selectbox("🎯 Select your Category", sorted(category_display))
+            selected_category_display = st.selectbox("🎯 Select your Category", ["-- Any --"] + sorted(category_display))
             selected_branch = st.selectbox("💡 Optional: Filter by Branch", ["-- Any --"] + branch_options)
 
         submit = st.form_submit_button("🔍 Find Colleges")
 
     if submit:
         filtered_df = df.copy()
-        category = selected_category_display.split(" – ")[0]
+        if selected_category_display != "-- Any --":
+            category = selected_category_display.split(" – ")[0]
+            filtered_df = filtered_df[filtered_df["Category"] == category]
 
         if selected_college != "-- Any --":
             college_code = selected_college.split(" – ")[0]
@@ -326,8 +328,7 @@ with tab2:
         max_rank = rank + tolerance
 
         filtered_df = filtered_df[
-            (filtered_df["Category"] == category) &
-            (filtered_df["Cutoff Rank"].between(min_rank, max_rank))
+            filtered_df["Cutoff Rank"].between(min_rank, max_rank)
         ]
 
         st.subheader("🎓 Eligible Colleges and Branches")
