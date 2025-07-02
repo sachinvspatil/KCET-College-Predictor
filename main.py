@@ -3,10 +3,49 @@ import base64
 import hashlib
 import pandas as pd
 import os
-# import gspread
-# from oauth2client.service_account import ServiceAccountCredentials
+from supabase import create_client, Client
 
+# Supabase configuration
+SUPABASE_URL = "https://draktjzrxhplnrriumkq.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyYWt0anpyeGhwbG5ycml1bWtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0NzkzMjAsImV4cCI6MjA2NzA1NTMyMH0.tNR5qQZlvGSjlCS9c6nJGwUwmr4gVuysZd15Sn6DjDw"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ------------------ Simple User Store ------------------
+def hash_password(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def save_user(email, password_hash, active=False):
+    # Insert user into Supabase
+    supabase.table("users").insert({
+        "email": email,
+        "password_hash": password_hash,
+        "active": active
+    }).execute()
+
+def user_exists(email):
+    res = supabase.table("users").select("id").eq("email", email).execute()
+    return len(res.data) > 0
+
+def validate_login(email, password):
+    import hashlib
+    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    res = supabase.table("users").select("password_hash,active").eq("email", email).execute()
+    if not res.data:
+        return False, "User not found. Please register."
+    user = res.data[0]
+    if user["password_hash"] != pw_hash:
+        return False, "Incorrect password."
+    if not user["active"]:
+        return False, "Account not activated. Please contact admin."
+    return True, "Login successful."
+
+def activate_user(email, active=True):
+    supabase.table("users").update({"active": active}).eq("email", email).execute()
+
+def load_users():
+    res = supabase.table("users").select("email,active").execute()
+    import pandas as pd
+    return pd.DataFrame(res.data)
 
 # ------------------ Utility ------------------
 def get_image_base64(image_path):
@@ -44,169 +83,110 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ------------------ Login/Register UI ------------------
+def is_valid_email(email):
+    import re
+    # Simple regex for email validation
+    return re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
 
+def login_register_ui():
+    st.title("🔐 User Login / Register")
+    tab1, tab2, tab3 = st.tabs(["🔑 Login", "🆕 Register", "🛡️ Admin Login"])
+    with tab1:
+        username = st.text_input("Email", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pw")
+        if st.button("Login"):
+            ok, msg = validate_login(username, password)
+            if ok:
+                st.session_state.user = username
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
+    with tab2:
+        new_email = st.text_input("Email", key="reg_user")
+        new_password = st.text_input("Choose Password", type="password", key="reg_pw")
+        if st.button("Register"):
+            if not is_valid_email(new_email):
+                st.error("Please enter a valid email address.")
+            elif user_exists(new_email):
+                st.error("Email already registered.")
+            elif not new_email or not new_password:
+                st.error("Email and password required.")
+            else:
+                save_user(new_email, hash_password(new_password), active=False)
+                st.success("Registration successful! Please contact admin sachinvspatil@gmail.com throgh your registerd email id for activation.")
+    with tab3:
+        if st.session_state.get("admin"):
+            admin_panel()
+        else:
+            admin_login_ui()
 
-# # 🌐 ========== Google Sheets Setup ==========
-# GSHEET_NAME = "kcet_users"
-# GSCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+# ------------------ Admin Panel ------------------
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "supersecret"
 
-# # # Load credentials from Streamlit secrets or JSON
-# # if "gcp_service_account" in st.secrets:
-# #     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], GSCOPE)
-# # else:
-# #     creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", GSCOPE)
+def admin_login_ui():
+    st.title("🛡️ Admin Access")
+    u = st.text_input("Admin Username")
+    pw = st.text_input("Admin Password", type="password")
+    if st.button("Login as Admin"):
+        if u == ADMIN_USERNAME and pw == ADMIN_PASSWORD:
+            st.session_state.admin = True
+            st.session_state.show_admin_login = False
+            st.rerun()
+        else:
+            st.error("Invalid admin credentials")
 
-# # Local use only: Load from creds.json
-# creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", GSCOPE)
+def admin_panel():
+    st.title("👥 Admin Dashboard")
+    df = load_users()
+    st.markdown(f"**Total Registered Users:** {len(df)}")
+    act = df[df.active.astype(str).str.lower()=="true"]
+    inact = df[df.active.astype(str).str.lower()!="true"]
+    st.markdown(f"**• Active:** {len(act)} • **Inactive:** {len(inact)}")
+    st.markdown("---")
+    st.subheader("Manage Account Status")
+    for i, r in df.iterrows():
+        cols = st.columns([3,1,1])
+        cols[0].write(r["email"])
+        cols[1].write("🟢" if str(r["active"]).lower()=="true" else "🔴")
+        if str(r["active"]).lower()!="true":
+            if cols[2].button("Activate", key=f"act_{r['email']}"):
+                activate_user(r["email"], True)
+                st.rerun()
+        else:
+            if cols[2].button("Deactivate", key=f"deact_{r['email']}"):
+                activate_user(r["email"], False)
+                st.rerun()
+    if st.button("Logout Admin"):
+        del st.session_state.admin
+        st.rerun()
 
+# ------------------ Main App Routing ------------------
+if st.session_state.get("show_admin_login"):
+    admin_login_ui()
+    st.stop()
 
-# gc = gspread.authorize(creds)
-# sheet = gc.open(GSHEET_NAME).sheet1
+if st.session_state.get("admin"):
+    admin_panel()
+    st.stop()
 
-# # ──========= Helper Functions =========─
-# def hash_password(pw):
-#     return hashlib.sha256(pw.encode()).hexdigest()
+if "user" not in st.session_state:
+    login_register_ui()
+    st.stop()
 
-# def load_users():
-#     return pd.DataFrame(sheet.get_all_records())
+st.sidebar.success(f"Logged in: {st.session_state.user}")
+if st.sidebar.button("Logout"):
+    del st.session_state.user
+    st.rerun()
 
-# def add_user(username, password_hash):
-#     sheet.append_row([username, password_hash, False])
-
-# def activate_user(username, active=True):
-#     users = load_users().to_dict("records")
-#     for i, u in enumerate(users, start=2):
-#         if u["username"] == username:
-#             sheet.update_cell(i, 3, str(active))
-#             break
-
-# def validate_login(u, pw):
-#     df = load_users()
-#     row = df[df.username == u]
-#     if row.empty: return False, "User not found."
-#     if row.iloc[0]["password_hash"] != hash_password(pw): return False, "Incorrect password."
-#     if not str(row.iloc[0]["active"]).lower() in ["true","1"]: return False, "Account not activated."
-#     return True, "Login successful."
-
-# def register_user(u, pw):
-#     df = load_users()
-#     if u in df.username.values: return False, "Username exists."
-#     add_user(u, hash_password(pw))
-#     return True, "Registered! Complete payment via QR."
-
-# # ──========= UI Helpers =========─
-# def get_base64(path):
-#     return base64.b64encode(open(path,"rb").read()).decode()
-
-# logo_base64 = get_base64("logo.png")
-# qr_base64 = get_base64("upi_qr.png")
-
-# st.set_page_config(page_icon="logo.png", layout="wide")
-# st.markdown(f"""
-# <style>
-# .header {{ display:flex; align-items:center; }}
-# .header img {{ width:50px; }}
-# .header h1 {{ margin-left:10px; font-size:2rem; }}
-# .footer{{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:14px;color:gray;}}
-# </style>
-# <div class="header"><img src="data:image/png;base64,{logo_base64}" alt=""><h1>CET SELECT</h1></div>
-# <div class="footer">© 2025 OptionGuru. All rights reserved.</div>
-# """, unsafe_allow_html=True)
-
-# # ──========= Authentication Flow =========─
-# def login_register_ui():
-#     st.title("🔐 User Portal")
-#     tab1, tab2 = st.tabs(["🔑 Login","🆕 Register"])
-#     with tab1:
-#         u = st.text_input("Username", key="l_u")
-#         pw = st.text_input("Password", type="password", key="l_pw")
-#         if st.button("Login"):
-#             ok, msg = validate_login(u, pw)
-#             st.success(msg) if ok else st.error(msg)
-#             if ok:
-#                 st.session_state.user = u
-#                 st.rerun()
-#     with tab2:
-#         u2 = st.text_input("Pick Username", key="r_u")
-#         pw2 = st.text_input("Pick Password", type="password", key="r_pw")
-#         if st.button("Register"):
-#             ok, msg = register_user(u2, pw2)
-#             st.success(msg) if ok else st.error(msg)
-#             if ok:
-#                 st.image(qr_base64, width=200, caption="Scan to pay")
-#                 st.info("Email admin after payment for activation")
-
-# # ──========= Admin Panel =========─
-# ADMIN_USERNAME = "admin"
-# ADMIN_PASSWORD = "supersecret"
-
-# def admin_login_ui():
-#     st.title("🛡️ Admin Access")
-#     u = st.text_input("Admin Username")
-#     pw = st.text_input("Admin Password", type="password")
-#     if st.button("Login as Admin"):
-#         if u == ADMIN_USERNAME and pw == ADMIN_PASSWORD:
-#             st.session_state.admin = True
-#             st.rerun()
-#         else:
-#             st.error("Invalid admin credentials")
-
-# def admin_panel():
-#     st.title("👥 Admin Dashboard")
-#     df = load_users()
-#     st.markdown(f"**Total Registered Users:** {len(df)}")
-#     act = df[df.active.astype(str).str.lower()=="true"]
-#     inact = df[df.active.astype(str).str.lower()!="true"]
-#     st.markdown(f"**• Active:** {len(act)} • **Inactive:** {len(inact)}")
-#     c1, c2 = st.columns(2)
-#     with c1:
-#         if st.button("Download Active"):
-#             st.download_button("CSV", act.to_csv(index=False), "active_users.csv", "text/csv")
-#     with c2:
-#         if st.button("Download Inactive"):
-#             st.download_button("CSV", inact.to_csv(index=False), "inactive_users.csv", "text/csv")
-#     st.markdown("---")
-#     st.subheader("Manage Account Status")
-#     for i,r in df.iterrows():
-#         cols = st.columns([3,1,1])
-#         cols[0].write(r["username"])
-#         cols[1].write("🟢" if str(r["active"]).lower()=="true" else "🔴")
-#         if str(r["active"]).lower()!="true":
-#             if cols[2].button("Activate", key=f"act_{r['username']}"):
-#                 activate_user(r["username"], True)
-#                 st.rerun()
-#         else:
-#             if cols[2].button("Deactivate", key=f"deact_{r['username']}"):
-#                 activate_user(r["username"], False)
-#                 st.rerun()
-#     if st.button("Logout Admin"):
-#         del st.session_state.admin
-#         st.rerun()
-
-# # ──========= Routing =========─
-# if st.sidebar.button("Admin Login"):
-#     st.session_state.show_admin_login = True
-
-# if st.session_state.get("show_admin_login"):
-#     admin_login_ui()
-# elif st.session_state.get("admin"):
-#     admin_panel()
-# elif "user" not in st.session_state:
-#     login_register_ui()
-# else:
-#     st.sidebar.success(f"Logged in: {st.session_state.user}")
-#     if st.sidebar.button("Logout"):
-#         del st.session_state.user
-#         st.rerun()
-    # st.header("🎓 KCET College Predictor")
-    # st.write("Your secure prediction space here.")
-
+# Add Admin Login button to sidebar
+if st.sidebar.button("Admin Login"):
+    st.session_state.show_admin_login = True
 
 st.title("🎓 Welcome to KCET College Predictor")
-#st.write("✅ This is the secure area of your app, visible only to activated users.")
 
-
-    
 @st.cache_data
 def load_cutoff_data():
     df = pd.read_csv("cleaned_cutoff_data_latest_cs.csv")
@@ -337,16 +317,3 @@ with tab2:
             st.dataframe(filtered_df.sort_values(by="Cutoff Rank").reset_index(drop=True))
         else:
             st.warning("❌ No eligible colleges found. Try adjusting your filters.")
-
-
-    # # ✅ Prepare pages dynamically
-    # pages = {
-    #     "Dashboards": [
-    #         st.Page("pages/kcet_predictor.py", title="kcet_predictor"),
-    #     ]
-    # }
-
-
-    # # ✅ Render pages
-    # pg = st.navigation(pages)
-    # pg.run()
