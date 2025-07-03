@@ -15,7 +15,8 @@ def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def save_user(email, password_hash, active=False):
-    # Insert user into Supabase
+    # Store email in lowercase for case-insensitive matching
+    email = email.lower()
     supabase.table("users").insert({
         "email": email,
         "password_hash": password_hash,
@@ -23,12 +24,15 @@ def save_user(email, password_hash, active=False):
     }).execute()
 
 def user_exists(email):
+    # Case-insensitive check for email
+    email = email.lower()
     res = supabase.table("users").select("id").eq("email", email).execute()
     return len(res.data) > 0
 
 def validate_login(email, password):
     import hashlib
     pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    email = email.lower()
     res = supabase.table("users").select("password_hash,active").eq("email", email).execute()
     if not res.data:
         return False, "User not found. Please register."
@@ -40,6 +44,7 @@ def validate_login(email, password):
     return True, "Login successful."
 
 def activate_user(email, active=True):
+    email = email.lower()
     supabase.table("users").update({"active": active}).eq("email", email).execute()
 
 def load_users():
