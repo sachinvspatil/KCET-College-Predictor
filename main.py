@@ -128,8 +128,8 @@ def login_register_ui():
             admin_login_ui()
 
 # ------------------ Admin Panel ------------------
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "supersecret"
+ADMIN_USERNAME = st.secrets["admin"]["username"]
+ADMIN_PASSWORD = st.secrets["admin"]["password"]
 
 def admin_login_ui():
     st.title("🛡️ Admin Access")
