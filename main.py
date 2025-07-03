@@ -6,8 +6,8 @@ import os
 from supabase import create_client, Client
 
 # Supabase configuration
-SUPABASE_URL = "https://draktjzrxhplnrriumkq.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyYWt0anpyeGhwbG5ycml1bWtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE0NzkzMjAsImV4cCI6MjA2NzA1NTMyMH0.tNR5qQZlvGSjlCS9c6nJGwUwmr4gVuysZd15Sn6DjDw"
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["key"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ------------------ Simple User Store ------------------
