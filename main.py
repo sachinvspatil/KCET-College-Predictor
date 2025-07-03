@@ -47,6 +47,10 @@ def activate_user(email, active=True):
     email = email.lower()
     supabase.table("users").update({"active": active}).eq("email", email).execute()
 
+def delete_user(email):
+    email = email.lower()
+    supabase.table("users").delete().eq("email", email).execute()
+
 def load_users():
     res = supabase.table("users").select("email,active").execute()
     import pandas as pd
@@ -153,7 +157,7 @@ def admin_panel():
     st.markdown("---")
     st.subheader("Manage Account Status")
     for i, r in df.iterrows():
-        cols = st.columns([3,1,1])
+        cols = st.columns([3,1,1,1])
         cols[0].write(r["email"])
         cols[1].write("🟢" if str(r["active"]).lower()=="true" else "🔴")
         if str(r["active"]).lower()!="true":
@@ -164,6 +168,9 @@ def admin_panel():
             if cols[2].button("Deactivate", key=f"deact_{r['email']}"):
                 activate_user(r["email"], False)
                 st.rerun()
+        if cols[3].button("Delete", key=f"del_{r['email']}"):
+            delete_user(r["email"])
+            st.rerun()
     if st.button("Logout Admin"):
         del st.session_state.admin
         st.rerun()
