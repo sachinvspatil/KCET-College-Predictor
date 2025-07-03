@@ -15,7 +15,8 @@ def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def save_user(email, password_hash, active=False):
-    # Insert user into Supabase
+    # Store email in lowercase for case-insensitive matching
+    email = email.lower()
     supabase.table("users").insert({
         "email": email,
         "password_hash": password_hash,
@@ -23,12 +24,15 @@ def save_user(email, password_hash, active=False):
     }).execute()
 
 def user_exists(email):
+    # Case-insensitive check for email
+    email = email.lower()
     res = supabase.table("users").select("id").eq("email", email).execute()
     return len(res.data) > 0
 
 def validate_login(email, password):
     import hashlib
     pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    email = email.lower()
     res = supabase.table("users").select("password_hash,active").eq("email", email).execute()
     if not res.data:
         return False, "User not found. Please register."
@@ -40,6 +44,7 @@ def validate_login(email, password):
     return True, "Login successful."
 
 def activate_user(email, active=True):
+    email = email.lower()
     supabase.table("users").update({"active": active}).eq("email", email).execute()
 
 def load_users():
@@ -232,19 +237,19 @@ with tab1:
     with st.form("branch_form"):
         st.markdown("### 🏫 Explore Colleges, Branches, Locations, Categories")
 
-        selected_branch = st.selectbox("💡 Optional: Filter by Branch", ["-- Any --"] + branch_options)
+        selected_branches = st.multiselect("💡 Optional: Filter by Branch(es)", branch_options)
         selected_college = st.selectbox("🏛️ Optional: Filter by College", ["-- Any --"] + college_options)
         selected_category_display = st.selectbox("🎯 Optional: Filter by Category", ["-- Any --"] + sorted(category_display))
-        selected_location = st.selectbox("📍 Optional: Filter by Location", ["-- Any --"] + location_options)
+        selected_locations = st.multiselect("📍 Optional: Filter by Location(s)", location_options)
 
         branch_submit = st.form_submit_button("🔍 Show Results")
 
     if branch_submit:
         filtered_df = df.copy()
 
-        if selected_branch != "-- Any --":
-            branch_code = selected_branch.split(" – ")[0]
-            filtered_df = filtered_df[filtered_df["Branch Code"] == branch_code]
+        if selected_branches:
+            branch_codes = [b.split(" – ")[0] for b in selected_branches]
+            filtered_df = filtered_df[filtered_df["Branch Code"].isin(branch_codes)]
 
         if selected_college != "-- Any --":
             college_code = selected_college.split(" – ")[0]
@@ -254,8 +259,8 @@ with tab1:
             category_code = selected_category_display.split(" – ")[0]
             filtered_df = filtered_df[filtered_df["Category"] == category_code]
 
-        if selected_location != "-- Any --":
-            filtered_df = filtered_df[filtered_df["Location"] == selected_location]
+        if selected_locations:
+            filtered_df = filtered_df[filtered_df["Location"].isin(selected_locations)]
 
         result_df = filtered_df[[
             'College Code', 'College Name', 'Location',
@@ -279,10 +284,10 @@ with tab2:
         with col1:
             rank = st.number_input("📈 Enter your KCET Rank", min_value=1, step=1)
             selected_college = st.selectbox("🏛️ Optional: Filter by College", ["-- Any --"] + college_options)
-            selected_location = st.selectbox("📍 Optional: Filter by Location", ["-- Any --"] + location_options)
+            selected_locations = st.multiselect("📍 Optional: Filter by Location(s)", location_options)
         with col2:
             selected_category_display = st.selectbox("🎯 Select your Category", ["-- Any --"] + sorted(category_display))
-            selected_branch = st.selectbox("💡 Optional: Filter by Branch", ["-- Any --"] + branch_options)
+            selected_branches = st.multiselect("💡 Optional: Filter by Branch(es)", branch_options)
 
         submit = st.form_submit_button("🔍 Find Colleges")
 
@@ -296,12 +301,12 @@ with tab2:
             college_code = selected_college.split(" – ")[0]
             filtered_df = filtered_df[filtered_df["College Code"] == college_code]
 
-        if selected_branch != "-- Any --":
-            branch_code = selected_branch.split(" – ")[0]
-            filtered_df = filtered_df[filtered_df["Branch Code"] == branch_code]
+        if selected_branches:
+            branch_codes = [b.split(" – ")[0] for b in selected_branches]
+            filtered_df = filtered_df[filtered_df["Branch Code"].isin(branch_codes)]
 
-        if selected_location != "-- Any --":
-            filtered_df = filtered_df[filtered_df["Location"] == selected_location]
+        if selected_locations:
+            filtered_df = filtered_df[filtered_df["Location"].isin(selected_locations)]
 
         tolerance = max(int(rank * 0.15), 500)
         min_rank = max(rank - tolerance, 1)
