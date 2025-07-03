@@ -120,7 +120,7 @@ def login_register_ui():
                 st.error("Email and password required.")
             else:
                 save_user(new_email, hash_password(new_password), active=False)
-                st.success("Registration successful! Please contact admin sachinvspatil@gmail.com throgh your registerd email id for activation.")
+                st.success("Registration successful! Please contact admin sachinvspatil@gmail.com through your registerd email id for activation.")
     with tab3:
         if st.session_state.get("admin"):
             admin_panel()
