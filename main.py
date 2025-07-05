@@ -4,6 +4,7 @@ import hashlib
 import pandas as pd
 import os
 from supabase import create_client, Client
+import uuid
 
 # Supabase configuration
 SUPABASE_URL = st.secrets["supabase"]["url"]
@@ -98,6 +99,37 @@ def is_valid_email(email):
     # Simple regex for email validation
     return re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
 
+# Add a table to track user sessions in Supabase
+
+def is_user_logged_in(email, session_token=None):
+    email = email.lower()
+    res = supabase.table("user_sessions").select("session_token,active").eq("email", email).eq("active", True).execute()
+    if not res.data:
+        return False
+    if session_token:
+        # If a session_token is provided, check if it matches
+        return res.data[0]["session_token"] == session_token
+    return True
+
+def set_user_session(email, active=True, session_token=None):
+    email = email.lower()
+    if active:
+        # Insert or update session to active with a new session_token
+        if not session_token:
+            session_token = str(uuid.uuid4())
+        res = supabase.table("user_sessions").select("id").eq("email", email).execute()
+        if res.data:
+            session_id = res.data[0]["id"]
+            supabase.table("user_sessions").update({"active": True, "session_token": session_token}).eq("id", session_id).execute()
+        else:
+            supabase.table("user_sessions").insert({"email": email, "active": True, "session_token": session_token}).execute()
+        return session_token
+    else:
+        # Set session to inactive and clear session_token
+        supabase.table("user_sessions").update({"active": False, "session_token": None}).eq("email", email).execute()
+        return None
+
+# ------------------ Login/Register UI ------------------
 def login_register_ui():
     st.title("🔐 User Login / Register")
     tab1, tab2, tab3 = st.tabs(["🔑 Login", "🆕 Register", "🛡️ Admin Login"])
@@ -105,13 +137,18 @@ def login_register_ui():
         username = st.text_input("Email", key="login_user")
         password = st.text_input("Password", type="password", key="login_pw")
         if st.button("Login"):
-            ok, msg = validate_login(username, password)
-            if ok:
-                st.session_state.user = username
-                st.success(msg)
-                st.rerun()
+            if is_user_logged_in(username) and not is_user_logged_in(username, st.session_state.get("session_token")):
+                st.error("This user is already logged in from another device or session.")
             else:
-                st.error(msg)
+                ok, msg = validate_login(username, password)
+                if ok:
+                    session_token = set_user_session(username, active=True)
+                    st.session_state.user = username
+                    st.session_state.session_token = session_token
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
     with tab2:
         new_email = st.text_input("Email", key="reg_user")
         new_password = st.text_input("Choose Password", type="password", key="reg_pw")
@@ -189,8 +226,21 @@ if "user" not in st.session_state:
     st.stop()
 
 st.sidebar.success(f"Logged in: {st.session_state.user}")
+# On every page load, check session_token
+if "user" in st.session_state and "session_token" in st.session_state:
+    if not is_user_logged_in(st.session_state.user, st.session_state.session_token):
+        st.warning("You have been logged out because your account was used to log in elsewhere.")
+        del st.session_state.user
+        del st.session_state.session_token
+        st.rerun()
+
+# On logout, clear the session in Supabase
 if st.sidebar.button("Logout"):
-    del st.session_state.user
+    if "user" in st.session_state:
+        set_user_session(st.session_state.user, active=False)
+        del st.session_state.user
+        if "session_token" in st.session_state:
+            del st.session_state.session_token
     st.rerun()
 
 # Add Admin Login button to sidebar
@@ -322,10 +372,3 @@ with tab2:
         filtered_df = filtered_df[
             filtered_df["Cutoff Rank"].between(min_rank, max_rank)
         ]
-
-        st.subheader("🎓 Eligible Colleges and Branches")
-        if not filtered_df.empty:
-            st.success(f"Found {len(filtered_df)} option(s) within ±{tolerance} ranks.")
-            st.dataframe(filtered_df.sort_values(by="Cutoff Rank").reset_index(drop=True))
-        else:
-            st.warning("❌ No eligible colleges found. Try adjusting your filters.")
