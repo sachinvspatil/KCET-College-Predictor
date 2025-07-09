@@ -370,5 +370,15 @@ with tab2:
         max_rank = rank + tolerance
 
         filtered_df = filtered_df[
-            filtered_df["Cutoff Rank"].between(min_rank, max_rank)
+            filtered_df["Cutoff Rank"] >= min_rank
         ]
+        filtered_df = filtered_df[
+            filtered_df["Cutoff Rank"] <= max_rank
+        ]
+
+        st.subheader("🎓 Eligible Colleges and Branches")
+        if not filtered_df.empty:
+            st.success(f"Found {len(filtered_df)} option(s) within ±{tolerance} ranks.")
+            st.dataframe(filtered_df.sort_values(by="Cutoff Rank").reset_index(drop=True))
+        else:
+            st.warning("❌ No eligible colleges found. Try adjusting your filters.")
