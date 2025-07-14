@@ -15,12 +15,13 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
-def save_user(email, password_hash, active=False):
+def save_user(email, password_hash, phone, active=True):
     # Store email in lowercase for case-insensitive matching
     email = email.lower()
     supabase.table("users").insert({
         "email": email,
         "password_hash": password_hash,
+        "phone": phone,
         "active": active
     }).execute()
 
@@ -53,7 +54,7 @@ def delete_user(email):
     supabase.table("users").delete().eq("email", email).execute()
 
 def load_users():
-    res = supabase.table("users").select("email,active").execute()
+    res = supabase.table("users").select("email,phone,active").execute()
     import pandas as pd
     return pd.DataFrame(res.data)
 
@@ -151,17 +152,20 @@ def login_register_ui():
                     st.error(msg)
     with tab2:
         new_email = st.text_input("Email", key="reg_user")
+        new_phone = st.text_input("Phone Number", key="reg_phone")
         new_password = st.text_input("Choose Password", type="password", key="reg_pw")
         if st.button("Register"):
             if not is_valid_email(new_email):
                 st.error("Please enter a valid email address.")
+            elif not new_phone or not new_phone.isdigit() or len(new_phone) < 10:
+                st.error("Please enter a valid phone number.")
             elif user_exists(new_email):
                 st.error("Email already registered.")
             elif not new_email or not new_password:
                 st.error("Email and password required.")
             else:
-                save_user(new_email, hash_password(new_password), active=False)
-                st.success("Registration successful! Please contact admin sachinvspatil@gmail.com through your registerd email id for activation.")
+                save_user(new_email, hash_password(new_password), new_phone, active=True)
+                st.success("Registration successful! You can now log in.")
     with tab3:
         if st.session_state.get("admin"):
             admin_panel()
@@ -194,18 +198,19 @@ def admin_panel():
     st.markdown("---")
     st.subheader("Manage Account Status")
     for i, r in df.iterrows():
-        cols = st.columns([3,1,1,1])
+        cols = st.columns([3,2,1,1,1])
         cols[0].write(r["email"])
-        cols[1].write("🟢" if str(r["active"]).lower()=="true" else "🔴")
+        cols[1].write(r.get("phone", "N/A"))
+        cols[2].write("🟢" if str(r["active"]).lower()=="true" else "🔴")
         if str(r["active"]).lower()!="true":
-            if cols[2].button("Activate", key=f"act_{r['email']}"):
+            if cols[3].button("Activate", key=f"act_{r['email']}"):
                 activate_user(r["email"], True)
                 st.rerun()
         else:
-            if cols[2].button("Deactivate", key=f"deact_{r['email']}"):
+            if cols[3].button("Deactivate", key=f"deact_{r['email']}"):
                 activate_user(r["email"], False)
                 st.rerun()
-        if cols[3].button("Delete", key=f"del_{r['email']}"):
+        if cols[4].button("Delete", key=f"del_{r['email']}"):
             delete_user(r["email"])
             st.rerun()
     if st.button("Logout Admin"):
@@ -331,6 +336,17 @@ with tab1:
             st.dataframe(result_df.reset_index(drop=True))
         else:
             st.warning("❌ No matching records found.")
+        
+        # Add contact and contribution message
+        st.markdown("""
+---
+💬 **Have any queries or need help?** Reach out to me at [sachinvspatil@gmail.com](mailto:sachinvspatil@gmail.com)
+
+🙏 **If this app helped you in your option entry, consider supporting its development!**
+
+**Scan the QR code below to contribute:**
+""")
+        st.image("upi_qr.png", width=200, caption="Thank you for your support!")
 
 # ------------------ TAB 2: College & Branch Explorer ------------------
 with tab2:
@@ -382,3 +398,14 @@ with tab2:
             st.dataframe(filtered_df.sort_values(by="Cutoff Rank").reset_index(drop=True))
         else:
             st.warning("❌ No eligible colleges found. Try adjusting your filters.")
+        
+        # Add contact and contribution message
+        st.markdown("""
+---
+💬 **Have any queries or need help?** Reach out to me at [sachinvspatil@gmail.com](mailto:sachinvspatil@gmail.com)
+
+🙏 **If this app helped you in your option entry, consider supporting its development!**
+
+**Scan the QR code below to contribute:**
+""")
+        st.image("upi_qr.png", width=200, caption="Thank you for your support!")
